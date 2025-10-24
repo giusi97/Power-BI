@@ -83,7 +83,7 @@ I’ve curated an **Amazon Learning List** with books and tools that shaped my j
 - **Cloud & Azure Architecture**  
 
 ##  If you want support me 
-🔗 [Check out my Amazon Learning List →](https://www.amazon.com/)
+🔗 [Check out my Amazon Learning List →]([https://www.amazon.com/](https://www.amazon.it/hz/wishlist/ls/24A9T2JR42KQO?ref_=list_d_wl_lfu_nav_5))
 
 > *(Affiliate disclosure: I may earn a small commission from qualifying purchases — at no additional cost to you.)*
 
