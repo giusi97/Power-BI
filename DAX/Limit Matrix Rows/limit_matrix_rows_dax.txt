@@ -1,0 +1,35 @@
+// ================================================
+// Project: Limit Matrix Rows in Power BI using DAX
+// Difficulty: 3 / 10 (Easy)
+// Author: Giuseppina Corsini
+// ================================================
+
+// Measure 1: Calculate the total number of courses (or any KPI)
+N_corsi = 
+SUM('Courses'[NumeroCorsi])
+// This measure sums up all values in the column [NumeroCorsi].
+// Replace 'Courses' with your table name and [NumeroCorsi] with your numeric column.
+
+// ------------------------------------------------
+
+// Measure 2: Assign a rank to each row based on N_corsi
+RowRank = 
+RANKX(
+    ALLSELECTED('Courses'),   // Ignores filters except those applied by user interaction
+    [N_corsi],                // Ranks based on the measure
+    ,                         // No alternate expression
+    DESC,                     // Higher values = better rank
+    DENSE                     // Ranks are sequential (1,2,3...) without gaps
+)
+
+// ------------------------------------------------
+
+// Measure 3: Create a filter to show only the Top 10 ranked rows
+ShowTopN =
+IF(
+    [RowRank] <= 10,          // Change 10 to your desired limit
+    1,                        // Visible
+    0                         // Hidden
+)
+// Apply this measure as a filter in your Matrix visual
+// Filter condition: ShowTopN = 1
