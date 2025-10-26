@@ -1,0 +1,100 @@
+# Limit Matrix Rows in Power BI Using DAX
+
+![Difficulty: Easy](https://img.shields.io/badge/Difficulty-Easy-brightgreen)
+
+## 🧠 Context
+This example shows how to **limit the number of rows displayed in a Power BI Matrix** when your main value is a **measure** (not a column).  
+It's a common case in dashboards where you only want to display the **Top N categories** based on a KPI such as sales, revenue, or in this example, the number of courses.
+
+---
+
+## 🎯 Goal
+To display only the **Top 10 rows** in a matrix visual, based on a DAX measure, using the functions `RANKX`, `ALLSELECTED`, and `IF`.
+
+---
+
+## 🧩 Solution Overview
+Power BI does not allow you to directly limit the number of rows in a matrix when values are measures.  
+To achieve this, we create **three measures** and use a **visual-level filter**:
+
+1. **Main measure (e.g. Sales, Courses, etc.)**
+2. **Ranking measure** to calculate row order
+3. **Filter measure** to display only Top N rows
+
+---
+
+## 💻 DAX Implementation
+
+```DAX
+-- Measure 1: Total value per item (example: total courses or total sales)
+N_corsi = SUM('Courses'[NumeroCorsi])
+
+-- Measure 2: Rank rows based on the measure
+RowRank =
+RANKX(
+    ALLSELECTED('Courses'),
+    [N_corsi],
+    ,
+    DESC,
+    DENSE
+)
+
+-- Measure 3: Display only the top 10 rows
+ShowTopN =
+IF(
+    [RowRank] <= 10,
+    1,
+    0
+)
+```
+
+### ✅ How to apply in Power BI
+1. Create or select your **Matrix** visual.  
+2. Place your fields in rows (e.g. Category → Product).  
+3. Add your measure (e.g. `[N_corsi]`) in **Values**.  
+4. Add the measure `[ShowTopN]` to **Filters on this visual**.  
+5. Set the filter to **Show items when ShowTopN = 1**.
+
+---
+
+## 📊 Example
+
+| Category | Title     | N_corsi |
+|-----------|------------|---------|
+| A         | Course 1   | 10      |
+| A         | Course 2   | 15      |
+| B         | Course 3   | 20      |
+| ...       | ...        | ...     |
+
+After applying the filter, only the **Top 10 rows** (based on N_corsi) will appear.
+
+---
+
+## 💬 Key Concepts
+- **RANKX**: ranks each row based on a chosen measure.
+- **ALLSELECTED**: ensures the rank respects user filters in the report.
+- **Visual filters**: allow you to hide non-top rows dynamically.
+
+---
+
+## 🧩 Difficulty
+**3 / 10 (Easy)**  
+A beginner-friendly example demonstrating a common Power BI pattern.  
+Perfect for learning how to combine ranking logic and visual filtering.
+
+---
+
+## 🧰 Technologies Used
+- Power BI Desktop  
+- DAX  
+
+---
+
+## 📘 Author’s Note
+This repository contains anonymized and educational examples from real Power BI use cases.  
+More projects will be added soon — stay tuned!
+
+---
+
+> 💡 *Repository under setup – more Power BI DAX examples coming soon!*
+
