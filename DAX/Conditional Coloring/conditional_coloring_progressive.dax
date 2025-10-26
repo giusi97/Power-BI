@@ -1,0 +1,107 @@
+// ====================================================================
+// Conditional Coloring — Progressive (L0 → L3)
+// License: MIT
+// Notes:
+// - Anonymous placeholders: map these to your model's measures.
+// - All measures return HEX strings for Conditional Formatting by Field value.
+// - Choose the level that matches your needs: L0 (simple) → L3 (extensible).
+// ====================================================================
+
+// --------------------------------------------------------------------
+// PLACEHOLDERS (define in your model or map to existing measures)
+// --------------------------------------------------------------------
+// [Rank_Selected]      : rank of current row/item
+// [MaxRank_Visual]     : highest rank displayed
+// [RowCount]           : rows displayed after filters/cuts
+// [RowCount_NoCut]     : rows without any cut/cap
+// [AlphaRank]          : (optional) tie-break rank, e.g., alphabetical
+// [AlphaMaxRank]       : (optional) max visible tie-break rank
+
+// ====================================================================
+// L0 — BASE (no cut, no tie-break)
+// ====================================================================
+
+TextColor_L0 =
+IF([Rank_Selected] > [MaxRank_Visual], "#000000", "#FFFFFF")
+
+BackgroundColor_L0 =
+IF([Rank_Selected] > [MaxRank_Visual], "#EEF7F4", "#FFFFFF")
+
+// ====================================================================
+// L1 — CUT-AWARE (exposes cut flag; color rule same as L0)
+// ====================================================================
+
+// Helper: is a cut active?
+IsCutActive_L1 = [RowCount] < [RowCount_NoCut]
+
+TextColor_L1 =
+IF([Rank_Selected] > [MaxRank_Visual], "#000000", "#FFFFFF")
+
+BackgroundColor_L1 =
+IF([Rank_Selected] > [MaxRank_Visual], "#EEF7F4", "#FFFFFF")
+
+// ====================================================================
+// L2 — TIE-BREAK (cut + secondary order)
+// ====================================================================
+// Rule summary:
+// 1) Highlight if Rank > MaxRank
+// 2) If Rank = MaxRank and cut is active, highlight only if beyond tie-break range
+// 3) Default: white
+
+TextColor_L2 =
+SWITCH(
+    TRUE(),
+    [Rank_Selected] > [MaxRank_Visual], "#000000",
+    [Rank_Selected] = [MaxRank_Visual]
+        && ([RowCount] < [RowCount_NoCut])
+        && ([AlphaRank] > [AlphaMaxRank]), "#000000",
+    "#FFFFFF"
+)
+
+BackgroundColor_L2 =
+SWITCH(
+    TRUE(),
+    [Rank_Selected] > [MaxRank_Visual], "#EEF7F4",
+    [Rank_Selected] = [MaxRank_Visual]
+        && ([RowCount] < [RowCount_NoCut])
+        && ([AlphaRank] > [AlphaMaxRank]), "#EEF7F4",
+    "#FFFFFF"
+)
+
+// ====================================================================
+// L3 — EXTENSIBLE (palette, overrides, and debug)
+// ====================================================================
+
+// ---- Palette constants (edit here) ----
+Color_Text_Emphasis   = "#000000"
+Color_Text_Default    = "#FFFFFF"
+Color_Back_Emphasis   = "#EEF7F4"
+Color_Back_Default    = "#FFFFFF"
+
+// ---- Debug helpers ----
+IsCutActive_L3 = [RowCount] < [RowCount_NoCut]
+IsBeyondAlpha_L3 = [AlphaRank] > [AlphaMaxRank]
+IsBeyondRank_L3 = [Rank_Selected] > [MaxRank_Visual]
+
+// ---- Override hook (optional): set to TRUE() to force emphasis
+// Example: return TRUE() when a KPI threshold is exceeded globally.
+EmphasisOverride = FALSE()
+
+// ---- Final L3 measures ----
+TextColor_L3 =
+SWITCH(
+    TRUE(),
+    EmphasisOverride, Color_Text_Emphasis,
+    IsBeyondRank_L3, Color_Text_Emphasis,
+    ([Rank_Selected] = [MaxRank_Visual]) && IsCutActive_L3 && IsBeyondAlpha_L3, Color_Text_Emphasis,
+    Color_Text_Default
+)
+
+BackgroundColor_L3 =
+SWITCH(
+    TRUE(),
+    EmphasisOverride, Color_Back_Emphasis,
+    IsBeyondRank_L3, Color_Back_Emphasis,
+    ([Rank_Selected] = [MaxRank_Visual]) && IsCutActive_L3 && IsBeyondAlpha_L3, Color_Back_Emphasis,
+    Color_Back_Default
+)
