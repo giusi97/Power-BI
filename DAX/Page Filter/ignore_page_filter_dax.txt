@@ -1,0 +1,44 @@
+// ================================================
+// Project: Ignoring Page Filters and Slicers in Power BI with DAX
+// Difficulty: 3 / 10 (Easy)
+// Author: Giuseppina Corsini
+// ================================================
+
+// Base measure: total sales amount
+Total Sales =
+SUM('Sales'[SalesAmount])
+
+// ------------------------------------------------
+
+// New measure: ignore slicer or page filter on Region
+Total Sales Ignoring Region Slicer =
+CALCULATE(
+    [Total Sales],
+    ALL('Sales'[Region])     // Ignores any filter applied to Region
+)
+// When a Region is selected in the slicer, this measure stays constant,
+// showing the overall total sales across all regions.
+
+// ------------------------------------------------
+
+// Alternative version using REMOVEFILTERS
+Total Sales Ignoring Region Slicer =
+CALCULATE(
+    [Total Sales],
+    REMOVEFILTERS('Sales'[Region])   // Removes only the Region filter
+)
+// REMOVEFILTERS() is preferred when you want to keep other filters (e.g., ProductCategory).
+
+// ------------------------------------------------
+
+// Optional: Create a virtual table ignoring Region slicer
+SalesTableIgnoringRegion =
+ADDCOLUMNS(
+    SUMMARIZE(
+        ALL('Sales'),
+        'Sales'[Product],
+        'Sales'[Region]
+    ),
+    "Total Sales", CALCULATE(SUM('Sales'[SalesAmount]))
+)
+// This table shows each Product and Region combination, ignoring slicer filters on Region.
