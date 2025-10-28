@@ -1,1 +1,158 @@
-[full DAX code from previous message]
+// ============================================================================
+// DAX — Alphabetical Rank (10 letters, reverse mapping A→26 … Z→1)
+// ---------------------------------------------------------------------------
+// Anonymized schema:
+//   Table   : 'Items'
+//   Column  : 'Items'[Label]    -- text to rank alphabetically
+//   Measure : [Metric]          -- numeric measure (main ranking criterion)
+// ---------------------------------------------------------------------------
+// GOAL
+// 1) Build a numeric code from the first 10 letters of each Label,
+//    mapping A..Z → 26..1 (reverse alphabetical order).
+//    Non-alphabetic characters are treated as 0.
+// 2) Combine this alphabetical code with [Metric] to create a composite key:
+//          RankKey = [Metric] + [Alpha10_Desc_Number] / 10^12
+//    The metric dominates; the alphabetical part only breaks ties.
+// 3) Use RANKX to generate a stable rank (DESC) across all rows.
+//
+// WHY REVERSE MAPPING?
+// - With A=26 and Z=1, labels starting with “A” appear first in DESC order.
+// - Works naturally with RANKX DESC (higher metric → better rank).
+//
+// NUMERIC SCALE CHOICE
+// - Using base 10 (L1*10^9 + L2*10^8 + … + L10) is for clarity.
+//   We only need a decreasing positional weight (not true base-26).
+// - Dividing by 10^12 ensures the alpha code never outweighs the metric.
+//
+// PERFORMANCE
+// - Lightweight (no iterator tables).
+// - If you only need first 5 letters, trim positions 6–10 for efficiency.
+//
+// ============================================================================
+
+
+// ---------------------------------------------------------------------------
+// 1) Helper – Uppercase label (safe for blanks)
+// ---------------------------------------------------------------------------
+Label_Upper :=
+VAR s = SELECTEDVALUE ( 'Items'[Label], BLANK() )
+RETURN IF ( ISBLANK ( s ), BLANK(), UPPER ( s ) )
+
+
+// ---------------------------------------------------------------------------
+// 2) Helper – Extract N-th character (1-based) from Label_Upper
+// ---------------------------------------------------------------------------
+Label_Char ( Pos ) :=
+VAR s = [Label_Upper]
+RETURN IF ( ISBLANK ( s ), BLANK(), MID ( s, Pos, 1 ) )
+
+
+// ---------------------------------------------------------------------------
+// 3) Helper – Reverse alphabetical mapping (A..Z → 26..1, others → 0)
+//    Uses UNICODE to evaluate ASCII position.
+// ---------------------------------------------------------------------------
+CharToNum_DESC_Safe ( c ) :=
+VAR code = UNICODE ( c )
+VAR a    = UNICODE ( "A" )
+VAR z    = UNICODE ( "Z" )
+RETURN
+    IF (
+        ISBLANK ( code ),
+        0,                                     // blank character → 0
+        IF ( code >= a && code <= z,
+             z - code + 1,                     // A→26, B→25, … Z→1
+             0                                 // non-letter → 0
+        )
+    )
+
+
+// ---------------------------------------------------------------------------
+// 4) Alphabetical numeric value (first 10 letters)
+//    Positional build (base-10 weights):
+//    n1*10^9 + n2*10^8 + … + n9*10 + n10
+//
+//    Each ni ∈ [0..26]  (0 for non-letters or missing chars).
+//    You can extend or reduce depth by adding/removing positions.
+// ---------------------------------------------------------------------------
+Alpha10_Desc_Number :=
+VAR n1  = CharToNum_DESC_Safe ( Label_Char ( 1 ) )
+VAR n2  = CharToNum_DESC_Safe ( Label_Char ( 2 ) )
+VAR n3  = CharToNum_DESC_Safe ( Label_Char ( 3 ) )
+VAR n4  = CharToNum_DESC_Safe ( Label_Char ( 4 ) )
+VAR n5  = CharToNum_DESC_Safe ( Label_Char ( 5 ) )
+VAR n6  = CharToNum_DESC_Safe ( Label_Char ( 6 ) )
+VAR n7  = CharToNum_DESC_Safe ( Label_Char ( 7 ) )
+VAR n8  = CharToNum_DESC_Safe ( Label_Char ( 8 ) )
+VAR n9  = CharToNum_DESC_Safe ( Label_Char ( 9 ) )
+VAR n10 = CharToNum_DESC_Safe ( Label_Char ( 10 ) )
+RETURN
+      n1  * 1000000000
+    + n2  * 100000000
+    + n3  * 10000000
+    + n4  * 1000000
+    + n5  * 100000
+    + n6  * 10000
+    + n7  * 1000
+    + n8  * 100
+    + n9  * 10
+    + n10
+
+
+// ---------------------------------------------------------------------------
+// 5) Composite key for ranking
+//    RankKey = Metric + (Alpha10_Desc_Number / 10^12)
+//
+//    - [Metric] is the main driver.
+//    - [Alpha10_Desc_Number]/10^12 is a fractional tiebreaker
+//      (never larger than ~0.03 when metric scale ~1).
+//    - If your metric has many decimals, increase divisor to 10^13 or 10^14.
+// ---------------------------------------------------------------------------
+RankKey_MetricThenAlpha10 :=
+VAR alpha_fraction = DIVIDE ( [Alpha10_Desc_Number], 1000000000000.0 ) // 10^12
+RETURN [Metric] + alpha_fraction
+
+
+// ---------------------------------------------------------------------------
+// 6) Final Rank (DESC, stable across filters)
+//    - ALL('Items'[Label]) removes row filters so ranks remain consistent
+//      even when visuals are filtered.
+//    - Use ALLEXCEPT('Items','Items'[Category]) for category-wise rank.
+// ---------------------------------------------------------------------------
+Rank_By_Metric_Then_Alpha10 :=
+VAR keyCurrent = [RankKey_MetricThenAlpha10]
+RETURN
+    RANKX (
+        ALL ( 'Items'[Label] ),                // global rank (ignores filters)
+        [RankKey_MetricThenAlpha10],           // expression to rank by
+        keyCurrent,                            // current row value
+        DESC,                                  // higher = better
+        DENSE                                  // 1,2,2,3,… no gaps
+    )
+
+
+// ---------------------------------------------------------------------------
+// 7) Optional – Pure alphabetical rank (no metric influence)
+//    - Uses only [Alpha10_Desc_Number].
+//    - ASC because smaller reverse values mean “closer to Z”.
+// ---------------------------------------------------------------------------
+Rank_Alphabetical_Only :=
+VAR keyCurrent = [Alpha10_Desc_Number]
+RETURN
+    RANKX (
+        ALL ( 'Items'[Label] ),
+        [Alpha10_Desc_Number],
+        keyCurrent,
+        ASC,
+        DENSE
+    )
+
+
+// ---------------------------------------------------------------------------
+// 8) Practical adjustments (for your own versions)
+//
+//  • DEPTH: reduce to 5 letters for performance if dataset is huge.
+//  • ASC MAPPING: create CharToNum_ASC_Safe (A→1…Z→26) for normal order.
+//  • CATEGORY RANK: replace ALL() with ALLEXCEPT() for per-group ranking.
+//  • DEBUG: add Alpha10_Desc_Number as a column to visually check the mapping.
+//  • STABILITY: for identical [Metric] + Label, DENSE keeps compact numbering.
+// ============================================================================
