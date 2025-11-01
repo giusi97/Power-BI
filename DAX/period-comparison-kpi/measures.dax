@@ -1,0 +1,55 @@
+// ============================================================================
+// measures.dax — Anonymized QoQ Delta KPI Pattern
+// ----------------------------------------------------------------------------
+// Replace the two base measures below with the ones from your model.
+//   [Count_Current_Period]     -> e.g., records in the current quarter
+//   [Count_Comparison_Period]  -> e.g., records in the comparison quarter
+// ----------------------------------------------------------------------------
+// Notes on behavior:
+// - If [Count_Comparison_Period] <> 0: returns (Current - Comparison) / ABS(Comparison).
+// - If both periods are 0: returns 0 (neutral).
+// - If comparison is 0 but current != 0: returns the raw difference (preserves magnitude).
+// - Signs and labels are handled by the measures below with EU decimal comma support.
+// ============================================================================
+
+// 1) Core ratio between current period and comparison period
+KPI_A2_3_Ratio =
+VAR Numerator   = [Count_Current_Period] - [Count_Comparison_Period]
+VAR Denominator = [Count_Comparison_Period]
+// Safe division: DIVIDE handles zero/blank gracefully, but we also branch for specific cases.
+RETURN
+IF (
+    // Case 1: both zero -> neutral 0
+    AND ( Denominator = 0, [Count_Current_Period] = 0 ),
+    0,
+    IF (
+        // Case 2: denominator zero but current non-zero -> return raw diff
+        Denominator = 0,
+        Numerator,
+        // Case 3: normal case -> signed ratio
+        DIVIDE ( Numerator, ABS ( Denominator ) )
+    )
+)
+
+// 2) Sign token for quick UI cues
+KPI_A2_3_Sign =
+SWITCH (
+    TRUE (),
+    ISBLANK ( [KPI_A2_3_Ratio] ), "N/A",
+    // Show "+" if ratio is >= 0 and comparison period exists
+    AND ( [KPI_A2_3_Ratio] >= 0, [Count_Comparison_Period] <> 0 ), "+",
+    // Show "-" if ratio < 0
+    [KPI_A2_3_Ratio] < 0, "-",
+    "N/A"
+)
+
+// 3) Human-friendly label (sign + percent), with EU decimal comma option
+KPI_A2_3_Label =
+VAR PercentText = FORMAT ( [KPI_A2_3_Ratio], "0.0%" )
+// For negative values, the "-" inside PercentText is enough (e.g., "-1.2%").
+// For non-negative values, prepend the sign token (e.g., "+0.8%").
+VAR WithSign =
+    IF ( [KPI_A2_3_Ratio] < 0, PercentText, [KPI_A2_3_Sign] & PercentText )
+// Locale tweak: use decimal comma for EU-style output. Remove SUBSTITUTE to keep the dot.
+RETURN
+SUBSTITUTE ( WithSign, ".", "," )
