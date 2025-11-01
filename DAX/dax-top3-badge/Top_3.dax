@@ -1,0 +1,41 @@
+// ============================================================================
+// measures_proximity.dax — Generic Proximity Rank + Top-3 Badge
+// ----------------------------------------------------------------------------
+// PURPOSE:
+//   1) Rank the selected item within a group defined by [source_id].
+//   2) Show a simple Top-3 badge ("+" if rank <= 3; "-" otherwise) when a
+//      single [territory_code] filter is active.
+// ----------------------------------------------------------------------------
+// Replace the table and column names below with those used in your data model.
+// ============================================================================
+
+// 1) Rank of the selected item within its source group
+Prox_Rank_SelectedItem =
+VAR SelectedSource =
+    SELECTEDVALUE ( 'proximity_table'[source_id] )
+VAR SelectedItem =
+    SELECTEDVALUE ( 'proximity_table'[item_label] )
+RETURN
+CALCULATE (
+    RANKX (
+        FILTER (
+            ALL ( 'proximity_table' ),
+            'proximity_table'[source_id] = SelectedSource
+        ),
+        CALCULATE (
+            [Count_Proximity_Records],
+            REMOVEFILTERS ( 'proximity_table'[item_label] )
+        ),
+        ,
+        DESC,
+        DENSE
+    ),
+    'proximity_table'[item_label] = SelectedItem
+)
+
+// 2) Badge indicating whether the selected item is in the Top-3
+Badge_Top3_Proximity =
+IF (
+    HASONEFILTER ( 'facts'[territory_code] ),
+    IF ( [Prox_Rank_SelectedItem] <= 3, "+", "-" )
+)
